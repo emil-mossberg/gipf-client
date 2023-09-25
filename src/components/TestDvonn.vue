@@ -1,5 +1,6 @@
 <template>
   <h1>Dvonn</h1>
+  <button @click="checkDvonnPath">Test DVONN ALGO</button>
   <div>CurrentPlayer {{ currentPlayer }}</div>
   <div class="board">
     <div class="board__row" v-for="(row, rowIndex) in newBoard" :key="rowIndex">
@@ -31,7 +32,6 @@
         }"
         v-for="(location, columnIndex) in row"
         :key="columnIndex"
-        @click="checkMove(rowIndex, columnIndex)"
       >
         {{ location.stackCount }}</span
       >
@@ -57,20 +57,45 @@ export type Position = {
 
 // BOARD to use
 const board = [
-  [1, 1, 2, 2, 1, 1, 1, 1, 1],
-  [0, 1, 3, 0, 0, 1, 0, 1, 1, 1],
-  [1, 1, 0, 1, 1, 1, 1, 3, 0, 1, 1],
+  [1, 0, 2, 2, 1, 1, 1, 0, 1],
+  [1, 1, 0, 0, 0, 1, 0, 0, 0, 0],
+  [1, 1, 3, 1, 1, 1, 1, 3, 1, 1, 1],
   [0, 1, 1, 1, 1, 1, 0, 1, 1, 1],
   [1, 1, 1, 3, 1, 1, 1, 1, 1]
 ]
 
+// ---B W B W B B W B W
+// -W B W B W B W B W B
+// R W B W B R W B W B R
+// -W B W B W B W B W B
+// ---B W B W W B W B W
+
+
+const board2 = [
+  [2, 1, 2, 1, 2, 2, 1, 2, 1],
+  [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
+  [3, 1, 2, 1, 2, 3, 1, 2, 1, 2, 3],
+  [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
+  [2, 1, 2, 1, 1, 2, 1, 2, 1]
+]
+
 const currentPlayer = ref(1) // 1 White - 2 Black - 3 DVONN
+
+// Decide if position is within board based on row and col
+// row always have to be between 0 and 4 since 5 rows
+// col depends on the row since the boards columns are 9 - 10 - 11 - 10 - 9 wide
+
+const isPosWithinBoard = (rowPos: number, colPos: number) => {
+  const colPosMax = rowPos < 3 ? rowPos + 8 : 12 - rowPos
+
+  return rowPos >= 0 && rowPos <= 4 && colPos >= 0 && colPos <= colPosMax
+}
 
 // TO Do this function should be able to create empty to be set up manully or from matrix[] with just 0,1,2,3 in locations
 const createBoard = () => {
   // TO DO pass ass argument instead in future
 
-  return board.map((row) => {
+  return board2.map((row) => {
     return row.map((piece) => {
       const newPosition: Position = {
         top: piece,
@@ -88,53 +113,152 @@ const createBoard = () => {
 
 const newBoard: Position[][] = reactive(createBoard())
 
-// TO do add stack factor - visualize it
-const createPositions = (rowIndex: number) => {
-  const aboveRow = rowIndex === 2 || rowIndex === 1 ? -1 : 1
-  const belowRow = rowIndex === 2 || rowIndex === 3 ? -1 : 1
+// Write good signature
+// stackSize has to be atleast 1 and other has to be within bounds of field
+const createPositions = (rowIndex: number, columnIndex: number, stackSize: number) => {
+  // Calculate number of columns in row (9 - 10 - 11 - 10 - 9)
+  const columnRowCount = rowIndex < 3 ? rowIndex + 8 : 12 - rowIndex
+  const positions = []
 
-  return [
-    [0, -1], // Simple inc stack factor
-    [0, 1], // Simple desc stack facktor
-    [-1, 0], // 1 - 0 2 - 1 etc, figure out math  
-    [1, 0], 
-    [-1, aboveRow],
-    [1, belowRow]
-  ]
+  // Same row indexes - going right
+  if (columnIndex + stackSize <= columnRowCount) positions.push([rowIndex, columnIndex + stackSize])
+
+  // Same row indexes - going left
+  if (columnIndex + -stackSize >= 0) positions.push([rowIndex, columnIndex - stackSize])
+
+  const newRow = rowIndex + stackSize // Is this used all over
+  let columnDown1
+
+  switch (rowIndex) {
+    case 0:
+      columnDown1 = columnIndex + (stackSize <= 2 ? 0 : 2 - stackSize)
+      break
+    case 1:
+      columnDown1 = columnIndex + (stackSize == 1 ? 0 : 1 - stackSize)
+      break
+    case 2:
+      columnDown1 = columnIndex + (stackSize == 1 ? -1 : -2)
+      break
+    case 3:
+      columnDown1 = columnIndex - 1
+      break
+  }
+
+  if (isPosWithinBoard(newRow, columnDown1)) positions.push([newRow, columnDown1])
+
+  let columnDown2
+  switch (rowIndex) {
+    case 0:
+      columnDown2 = columnIndex + (stackSize <= 1 ? 1 : 2)
+      break
+    case 1:
+      columnDown2 = columnIndex + 1
+      break
+    case 2:
+    case 3:
+      columnDown2 = columnIndex
+      break
+  }
+
+  if (isPosWithinBoard(newRow, columnDown2)) positions.push([newRow, columnDown2])
+
+  const newRowUp = rowIndex - stackSize
+  let columnUp1
+
+  switch (rowIndex) {
+    case 1:
+    case 2:
+      columnUp1 = columnIndex - stackSize
+      break
+    case 3:
+      columnUp1 = columnIndex - (stackSize == 1 ? 0 : stackSize - 1)
+      break
+    case 4:
+      columnUp1 = columnIndex - (stackSize <= 2 ? 0 : stackSize - 2)
+      break
+  }
+
+  if (isPosWithinBoard(newRowUp, columnUp1)) positions.push([newRowUp, columnUp1])
+
+  let columnUp2
+
+  switch (rowIndex) {
+    case 1:
+    case 2:
+      columnUp2 = columnIndex
+      break
+    case 3:
+      columnUp2 = columnIndex + 1
+      break
+    case 4:
+      columnUp2 = columnIndex + (stackSize == 1 ? 1 : 2)
+      break
+  }
+
+  if (isPosWithinBoard(newRowUp, columnUp2)) positions.push([newRowUp, columnUp2])
+  return positions
+}
+
+const checkDvonnPath = () => {
+  const dvonnPosition = []
+
+  // Matrix to mark all connections
+  const connected = newBoard.map((row, rowIndex) => {
+    return row.map((pos, colIndex) => {
+      if (pos.numberRed > 0) dvonnPosition.push([rowIndex, colIndex])
+      return false
+    })
+  })
+
+  const positionsToVisit = []
+
+  for (let index = 0; index < dvonnPosition.length; index++) {
+    connected[dvonnPosition[index][0]][dvonnPosition[index][1]] = true
+    positionsToVisit.push([dvonnPosition[index][0], dvonnPosition[index][1]])
+    // TO DO can I use set here? turn position into strinx #-#
+  }
+
+  let currentPosition
+  while ((currentPosition = positionsToVisit.pop())) {
+    connected[currentPosition[0]][currentPosition[1]] = true
+
+    const positions = createPositions(currentPosition[0], currentPosition[1], 1)
+
+    for (let index = 0; index < positions.length; index++) {
+      if (
+        !connected[positions[index][0]][positions[index][1]] &&
+        newBoard[positions[index][0]][positions[index][1]].top !== 0
+      ) {
+        positionsToVisit.push(positions[index])
+      }
+    }
+  }
+
+  connected.forEach((row, rowIndex) => {
+    row.forEach((column, colIndex) => {
+      if (!column && !!newBoard[rowIndex][colIndex].top) {
+        newBoard[rowIndex][colIndex].top = 0
+        newBoard[rowIndex][colIndex].stackCount = 0
+      }
+    })
+  })
 }
 
 const isPieceMovable = (board: Position[][], rowIndex: number, columnIndex: number): boolean => {
   // First - Check that is current players piece
   if (currentPlayer.value !== board[rowIndex][columnIndex].top) return false
 
-  // Second - Move on to making sure piece has atleast 1 / 6 surrounding posotions not blocked by other peaces
-
-  // All peaces on first and last row are always valid to move
+  // If top or bottom row - always allowed to move pieace
   if (rowIndex === 0 || rowIndex === 4) return true
 
-  // 2 position are on same row before and after theese are same for all 3 middles rows
-  // 2 pos above or below is the same
-  // Last 2 are calculated from above
-  // const positions = [[0, -1], [0, 1], [-1, 0], [1,0], [-1, aboveRow], [1, belowRow]];
-  const positions = createPositions(rowIndex)
+  const colPosMax = rowIndex < 3 ? rowIndex + 8 : 12 - rowIndex
 
-  let allowed = false
+  // If start or end column - always allowed to move pieace
+  if (columnIndex == 0 || columnIndex === colPosMax) return true
+  // Second - Move on to making sure piece has atleast 1 / 6 surrounding posotions not blocked by other peaces
+  const positions = createPositions(rowIndex, columnIndex, 1)
 
-  // It is allowed to move if any space is 0 (meaning false)
-  for (let index = 0; index < positions.length; index++) {
-    const rowPos = rowIndex + positions[index][0]
-    const colPos = columnIndex + positions[index][1]
-    const withinBoard = isPosWithinBoard(rowPos, colPos)
-
-    // pieace is allowed to move if it there is one empty space adjacent
-    // OR if its an edge peace - meaning that one bordering position is outside board
-    if ((withinBoard && !newBoard[rowPos][colPos].top) || !withinBoard) {
-      allowed = true
-      break
-    }
-  }
-
-  return allowed
+  return !!positions.find((position) => newBoard[position[0]][position[1]].top === 0)
 }
 
 const numberClick = ref(0) // 0 - 1 - 2 // If you click
@@ -145,18 +269,20 @@ let lastColumn: number
 
 // to do  work on this
 const clickedLocation = (rowIndex: number, columnIndex: number) => {
-  console.log('clicked location', `${rowIndex}${columnIndex}`)
   // If first click turn - increment numberClick - 1 and check
   // and if its an allowed peace
   if (numberClick.value == 0 && isPieceMovable(newBoard, rowIndex, columnIndex)) {
     lastRow = rowIndex
     lastColumn = columnIndex
-    legalMoves = createLegalMoves(newBoard, rowIndex, columnIndex)
+    const stackCount = newBoard[rowIndex][columnIndex].stackCount
+
+    legalMoves = createPositions(rowIndex, columnIndex, stackCount)
 
     numberClick.value = 1
 
     for (let index = 0; index < legalMoves.length; index++) {
-      newBoard[legalMoves[index][0]][legalMoves[index][1]].allowed = true
+      if (newBoard[legalMoves[index][0]][legalMoves[index][1]].top)
+        newBoard[legalMoves[index][0]][legalMoves[index][1]].allowed = true
     }
   } else if (
     numberClick.value == 1 &&
@@ -172,11 +298,12 @@ const clickedLocation = (rowIndex: number, columnIndex: number) => {
     currentPlayer.value = currentPlayer.value === 1 ? 2 : 1
 
     numberClick.value = 0
-    // TO do run DVONN check algorithm
 
     for (let index = 0; index < legalMoves.length; index++) {
       newBoard[legalMoves[index][0]][legalMoves[index][1]].allowed = false
     }
+
+    checkDvonnPath()
   } else if (numberClick.value === 1 && rowIndex == lastRow && columnIndex == lastColumn) {
     numberClick.value = 0
     for (let index = 0; index < legalMoves.length; index++) {
@@ -184,67 +311,13 @@ const clickedLocation = (rowIndex: number, columnIndex: number) => {
     }
   }
 }
-
-// Decide if position is within board based on row and col
-// row always have to be between 0 and 4 since 5 rows
-// col depends on the row since the boards columns are 9 - 10 - 11 - 10 - 9 wide
-
-const isPosWithinBoard = (rowPos: number, colPos: number) => {
-  const colPosMax = rowPos < 3 ? rowPos + 8 : 12 - rowPos
-
-  return rowPos >= 0 && rowPos <= 4 && colPos >= 0 && colPos <= colPosMax
-}
-
-const createLegalMoves = (board: Position[][], rowIndex: number, columnIndex: number) => {
-  const positions = createPositions(rowIndex)
-  const legalMoves = []
-
-  for (let index = 0; index < positions.length; index++) {
-    const rowPos = rowIndex + positions[index][0]
-    const colPos = columnIndex + positions[index][1]
-
-    // Check that position is within board and that it has a legal pieace ( 1 - 2 - 3)
-
-    if (isPosWithinBoard(rowPos, colPos) && newBoard[rowPos][colPos].top) {
-      legalMoves.push([rowIndex + positions[index][0], columnIndex + positions[index][1]])
-    }
-  }
-
-  return legalMoves
-}
-
-// TO DO also DO MOVE and and CALC REMOVING PIECES WITH DVONN
-
-// let lastRow: null | number = null
-// let lastColumn: null | number = null
-// let legalMoves = []
-
-const checkMove = (rowIndex: number, columnIndex: number) => {
-  if (lastRow == rowIndex && lastColumn == columnIndex) {
-    console.log('clicked same pieace twice!')
-    lastRow = lastColumn = null
-  }
-
-  lastRow = rowIndex
-  lastColumn = columnIndex
-
-  if (isPieceMovable(newBoard, rowIndex, columnIndex)) {
-    // Check height of stack -- need to add this
-    // use height to check all 6 locations around
-    legalMoves = createLegalMoves(newBoard, rowIndex, columnIndex)
-
-    for (let index = 0; index < legalMoves.length; index++) {
-      newBoard[legalMoves[index][0]][legalMoves[index][1]].allowed = true
-    }
-  }
-}
 </script>
 
 <style scoped>
 .tempPos {
-  font-size: 8px;
+  font-size: 12px;
   position: absolute;
-  top: -14px;
+  top: -20px;
   right: 20px;
 }
 
@@ -268,7 +341,7 @@ const checkMove = (rowIndex: number, columnIndex: number) => {
   display: inline-block;
   border: 1px solid black;
   background-color: #c4a484;
-  margin: 8px;
+  margin: 12px;
   height: 60px;
   width: 60px;
   position: relative;
@@ -309,6 +382,11 @@ const checkMove = (rowIndex: number, columnIndex: number) => {
 
 .location--allowed {
   outline: 2px solid green;
+  outline-offset: 2px;
+}
+
+.location--testing {
+  outline: 4px solid rebeccapurple;
   outline-offset: 2px;
 }
 

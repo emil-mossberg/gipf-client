@@ -1,9 +1,9 @@
 <template>
   <main>
-    <TestDvonn />
+    <DvonnGame />
   </main>
 </template>
 
 <script setup lang="ts">
-import TestDvonn from '../components/TestDvonn.vue'
+import DvonnGame from '../components/DvonnGame.vue'
 </script>
